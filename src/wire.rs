@@ -1,6 +1,8 @@
 use ats_common::ocv_types::{MinimalCameraCalibrationParams, MinimalStereoCalibrationParams, OpenCVMatrix3, OpenCVMatrix3x1, OpenCVMatrix5x1};
 use bytemuck::{AnyBitPattern, NoUninit};
 use opencv_ros_camera::RosOpenCvIntrinsics;
+#[allow(unused_imports)]
+use nalgebra::ComplexField;
 
 #[derive(Clone, Copy, NoUninit, AnyBitPattern)]
 #[repr(C, packed)]
