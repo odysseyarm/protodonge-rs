@@ -12,9 +12,11 @@ nalgebra = { version = "0.32.3", default-features = false }
 serde = { version = "1.0.219", default-features = false, optional = true }
 opencv-ros-camera = { version = "0.14.1", default-features = false }
 thiserror = { version = "2.0.12", default-features = false }
+defmt = { version = "0.3.10", optional = true }
 
 [features]
 default = ["std"]
 std = ["nalgebra/std", "ats_common/std"]
 pyo3 = ["dep:pyo3", "std"]
 serde = ["dep:serde"]
+defmt = ["dep:defmt"]

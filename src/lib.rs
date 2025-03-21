@@ -360,6 +360,7 @@ pub struct StreamUpdate {
 }
 
 #[repr(C)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Clone, Copy, Debug)]
 pub enum Error {
     UnexpectedEof { packet_type: Option<PacketType> },
@@ -411,6 +412,7 @@ impl TryFrom<u8> for Port {
 
 #[repr(C)]
 #[cfg_attr(feature = "pyo3", pyo3::pyclass(get_all))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Copy, Clone, Debug)]
 pub enum PacketType {
     WriteRegister(), // a.k.a. Poke
@@ -578,7 +580,7 @@ impl Packet {
             PacketData::ReadPropsResponse(_) => 6,
             PacketData::ObjectReportRequest() => 0,
             PacketData::ObjectReport(_) => ObjectReport::SIZE as u16,
-            PacketData::CombinedMarkersReport(_) => CombinedMarkersReport::SIZE,
+            PacketData::CombinedMarkersReport(_) => CombinedMarkersReport::SIZE as u16,
             PacketData::AccelReport(_) => AccelReport::SIZE as u16,
             PacketData::ImpactReport(_) => 4,
             PacketData::StreamUpdate(_) => 2,
@@ -606,7 +608,7 @@ impl Packet {
             PacketData::ReadPropsResponse(x) => x.serialize_to_vec(buf),
             PacketData::ObjectReportRequest() => (),
             PacketData::ObjectReport(x) => x.serialize_to_vec(buf),
-            PacketData::CombinedMarkersReport(x) => x.serialize(buf),
+            PacketData::CombinedMarkersReport(x) => x.serialize_to_vec(buf),
             PacketData::AccelReport(x) => x.serialize_to_vec(buf),
             PacketData::ImpactReport(x) => x.serialize_to_vec(buf),
             PacketData::StreamUpdate(x) => {
@@ -618,6 +620,60 @@ impl Packet {
                 buf.extend_from_slice(&data[..*len as usize]);
                 if len % 2 == 0 {
                     buf.push(0);
+                }
+            }
+        }
+    }
+
+    pub fn serialize_raw(&self, buf: &mut &mut [MaybeUninit<u8>]) {
+        let len = match &self.data {
+            PacketData::WriteRegister(_) => WriteRegister::SIZE as u16,
+            PacketData::ReadRegister(_) => Register::SIZE as u16,
+            PacketData::ReadRegisterResponse(_) => ReadRegisterResponse::SIZE as u16,
+            PacketData::WriteConfig(_) => GeneralConfig::SIZE as u16,
+            PacketData::ReadConfig() => 0,
+            PacketData::ReadConfigResponse(_) => GeneralConfig::SIZE as u16,
+            PacketData::ReadProps() => 0,
+            PacketData::ReadPropsResponse(_) => 6,
+            PacketData::ObjectReportRequest() => 0,
+            PacketData::ObjectReport(_) => ObjectReport::SIZE as u16,
+            PacketData::CombinedMarkersReport(_) => CombinedMarkersReport::SIZE as u16,
+            PacketData::AccelReport(_) => AccelReport::SIZE as u16,
+            PacketData::ImpactReport(_) => 4,
+            PacketData::StreamUpdate(_) => 2,
+            PacketData::FlashSettings() => 0,
+            PacketData::Vendor(_, (len, _)) => {
+                if *len % 2 != 0 {
+                    (*len + 1) as u16
+                } else {
+                    *len as u16 + 2
+                }
+            }
+        };
+        let words = u16::to_le_bytes((len + 4) / 2);
+        let ty = self.ty();
+        push(buf, &[words[0], words[1], ty.into(), self.id]);
+        match &self.data {
+            PacketData::WriteRegister(x) => x.serialize(buf),
+            PacketData::ReadRegister(x) => x.serialize(buf),
+            PacketData::ReadRegisterResponse(x) => x.serialize(buf),
+            PacketData::WriteConfig(x) => x.serialize(buf),
+            PacketData::ReadConfig() => (),
+            PacketData::ReadConfigResponse(x) => x.serialize(buf),
+            PacketData::ReadProps() => (),
+            PacketData::ReadPropsResponse(x) => x.serialize(buf),
+            PacketData::ObjectReportRequest() => (),
+            PacketData::ObjectReport(x) => x.serialize(buf),
+            PacketData::CombinedMarkersReport(x) => x.serialize(buf),
+            PacketData::AccelReport(x) => x.serialize(buf),
+            PacketData::ImpactReport(x) => x.serialize(buf),
+            PacketData::StreamUpdate(x) => push(buf, &[x.packet_id.into(), x.action as u8]),
+            PacketData::FlashSettings() => (),
+            PacketData::Vendor(_, (len, data)) => {
+                push(buf, &[*len]);
+                push(buf, &data[..*len as usize]);
+                if len % 2 == 0 {
+                    push(buf, &[0]);
                 }
             }
         }
@@ -761,9 +817,8 @@ impl Serialize for ObjectReport {
     }
 }
 
-impl CombinedMarkersReport {
-    const SIZE: u16 = 96;
-    pub fn parse(bytes: &mut &[u8]) -> Result<Self, Error> {
+impl Parse for CombinedMarkersReport {
+    fn parse(bytes: &mut &[u8]) -> Result<Self, Error> {
         use Error as E;
         let size = Self::SIZE as usize;
         if bytes.len() < size {
@@ -791,15 +846,17 @@ impl CombinedMarkersReport {
             wf_points: wf_positions,
         })
     }
+}
 
-    #[cfg(feature = "std")]
-    pub fn serialize(&self, buf: &mut Vec<u8>) {
+impl Serialize for CombinedMarkersReport {
+    const SIZE: usize = 96;
+    fn serialize(&self, buf: &mut &mut [MaybeUninit<u8>]) {
         for p in self.nf_points.iter().chain(&self.wf_points) {
             let (x, y) = (p.x, p.y);
             let byte0 = x & 0xff;
             let byte1 = ((x >> 8) & 0x0f) | ((y & 0x0f) << 4);
             let byte2 = y >> 4;
-            buf.extend_from_slice(&[byte0 as u8, byte1 as u8, byte2 as u8]);
+            push(buf, &[byte0 as u8, byte1 as u8, byte2 as u8]);
         }
     }
 }

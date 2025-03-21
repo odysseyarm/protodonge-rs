@@ -6,6 +6,7 @@ const SLIP_FRAME_ESC_END: u8 = 0xdc;
 const SLIP_FRAME_ESC_ESC: u8 = 0xdd;
 
 
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Error, Debug)]
 pub enum SlipDecodeError {
     #[error("double esc")]
@@ -17,7 +18,7 @@ pub enum SlipDecodeError {
 }
 
 /// Decode some data from a SLIP frame. This function does not handle SLIP_FRAME_END bytes.
-pub fn decode_slip_frame(buf: &mut [u8]) -> Result<&[u8], SlipDecodeError> {
+pub fn decode_slip_frame(buf: &mut [u8]) -> Result<usize, SlipDecodeError> {
     let mut j = 0;
     let mut esc = false;
     for i in 0..buf.len() {
@@ -50,7 +51,7 @@ pub fn decode_slip_frame(buf: &mut [u8]) -> Result<&[u8], SlipDecodeError> {
     if esc {
         return Err(SlipDecodeError::TrailingEsc);
     }
-    Ok(&buf[..j])
+    Ok(j)
 }
 
 
