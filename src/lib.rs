@@ -119,6 +119,7 @@ pub enum PacketData {
     ImpactReport(ImpactReport),
     StreamUpdate(StreamUpdate),
     FlashSettings(),
+    Ack(),
     Vendor(u8, (u8, [u8; 98])),
 }
 
@@ -430,6 +431,7 @@ pub enum PacketType {
     ImpactReport(),
     StreamUpdate(),
     FlashSettings(),
+    Ack(),
     End(),
     VendorStart(),
     Vendor(u8),
@@ -455,7 +457,8 @@ impl TryFrom<u8> for PacketType {
             0x0c => Ok(Self::ImpactReport()),
             0x0d => Ok(Self::StreamUpdate()),
             0x0e => Ok(Self::FlashSettings()),
-            0x0f => Ok(Self::End()),
+            0x0f => Ok(Self::Ack()),
+            0x10 => Ok(Self::End()),
             0x80 => Ok(Self::VendorStart()),
             0xff => Ok(Self::VendorEnd()),
             n if (PacketType::VendorStart().into()..PacketType::VendorEnd().into())
@@ -486,7 +489,8 @@ impl From<PacketType> for u8 {
             PacketType::ImpactReport() => 0x0c,
             PacketType::StreamUpdate() => 0x0d,
             PacketType::FlashSettings() => 0x0e,
-            PacketType::End() => 0x0f,
+            PacketType::Ack() => 0x0f,
+            PacketType::End() => 0x10,
             PacketType::VendorStart() => 0x80,
             PacketType::VendorEnd() => 0xff,
             PacketType::Vendor(n) => n,
@@ -512,6 +516,7 @@ impl Packet {
             PacketData::ImpactReport(_) => PacketType::ImpactReport(),
             PacketData::StreamUpdate(_) => PacketType::StreamUpdate(),
             PacketData::FlashSettings() => PacketType::FlashSettings(),
+            PacketData::Ack() => PacketType::Ack(),
             PacketData::Vendor(n, _) => PacketType::Vendor(n),
         }
     }
@@ -567,6 +572,7 @@ impl Packet {
         Ok(Self { id, data })
     }
 
+    // TODO rename and then implement Serialize trait
     #[cfg(feature = "std")]
     pub fn serialize(&self, buf: &mut Vec<u8>) {
         let len = match &self.data {
@@ -585,6 +591,7 @@ impl Packet {
             PacketData::ImpactReport(_) => 4,
             PacketData::StreamUpdate(_) => 2,
             PacketData::FlashSettings() => 0,
+            PacketData::Ack() => 0,
             PacketData::Vendor(_, (len, _)) => {
                 if *len % 2 != 0 {
                     (*len + 1) as u16
@@ -615,6 +622,7 @@ impl Packet {
                 buf.extend_from_slice(&[x.packet_id.into(), x.action as u8])
             }
             PacketData::FlashSettings() => (),
+            PacketData::Ack() => (),
             PacketData::Vendor(_, (len, data)) => {
                 buf.push(*len);
                 buf.extend_from_slice(&data[..*len as usize]);
@@ -642,6 +650,7 @@ impl Packet {
             PacketData::ImpactReport(_) => 4,
             PacketData::StreamUpdate(_) => 2,
             PacketData::FlashSettings() => 0,
+            PacketData::Ack() => 0,
             PacketData::Vendor(_, (len, _)) => {
                 if *len % 2 != 0 {
                     (*len + 1) as u16
@@ -669,6 +678,7 @@ impl Packet {
             PacketData::ImpactReport(x) => x.serialize(buf),
             PacketData::StreamUpdate(x) => push(buf, &[x.packet_id.into(), x.action as u8]),
             PacketData::FlashSettings() => (),
+            PacketData::Ack() => (),
             PacketData::Vendor(_, (len, data)) => {
                 push(buf, &[*len]);
                 push(buf, &data[..*len as usize]);
