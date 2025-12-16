@@ -4,10 +4,22 @@ const SEMVER: [u16; 3] = [0, 1, 0];
 
 #[cfg_attr(feature = "pyo3", pyo3::pyclass(get_all))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, Clone, Copy)]
 pub enum PairingError {
     Timeout,
     Cancelled,
+    NotBleMode,
+}
+
+#[cfg_attr(feature = "pyo3", pyo3::pyclass(get_all))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum TransportMode {
+    Usb = 0,
+    Ble = 1,
 }
 
 #[cfg_attr(feature = "pyo3", pyo3::pyclass(get_all))]
@@ -18,16 +30,10 @@ pub enum ClearBondsError {
     Failed,
 }
 
-#[cfg_attr(feature = "pyo3", pyo3::pyclass(get_all))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone, Copy, Debug)]
-pub enum BondStoreError {
-    Full,
-}
-
 #[repr(C)]
 #[cfg_attr(feature = "pyo3", pyo3::pyclass(get_all))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Clone, Copy, Debug)]
 pub struct StartPairing {
     pub timeout_ms: u32,
@@ -36,13 +42,14 @@ pub struct StartPairing {
 #[repr(C)]
 #[cfg_attr(feature = "pyo3", pyo3::pyclass(get_all))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Clone, Copy, Debug)]
-pub struct UsbMuxVersion {
+pub struct Version {
     pub protocol_semver: [u16; 3],
     pub firmware_semver: [u16; 3],
 }
 
-impl UsbMuxVersion {
+impl Version {
     pub fn new(firmware_semver: [u16; 3]) -> Self {
         Self {
             protocol_semver: SEMVER,
@@ -53,14 +60,18 @@ impl UsbMuxVersion {
 
 #[cfg_attr(feature = "pyo3", pyo3::pyclass(get_all))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Clone, Debug)]
-pub enum UsbMuxCtrlMsg {
+pub enum DeviceMsg {
     ReadVersion(),
-    ReadVersionResponse(UsbMuxVersion),
+    ReadVersionResponse(Version),
 
-    ClearBonds,
-    ClearBondsResponse(Result<(), ClearBondsError>),
-    BondStoreError(BondStoreError),
+    ClearBond,
+    ClearBondResponse(Result<(), ClearBondsError>),
+
+    GetTransportMode,
+    SetTransportMode(TransportMode),
+    TransportModeStatus(TransportMode),
 
     StartPairing(StartPairing),
     StartPairingResponse,
